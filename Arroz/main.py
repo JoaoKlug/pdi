@@ -17,9 +17,9 @@ INPUT_IMAGE =  'arroz.bmp'
 # TODO: ajuste estes parâmetros!
 NEGATIVO = False
 THRESHOLD = 0.8
-ALTURA_MIN = 1
-LARGURA_MIN = 1
-N_PIXELS_MIN = 1
+ALTURA_MIN = 10
+LARGURA_MIN = 10
+N_PIXELS_MIN = 10
 
 #===============================================================================
 
@@ -32,12 +32,7 @@ Parâmetros: img: imagem de entrada. Se tiver mais que 1 canal, binariza cada
             
 Valor de retorno: versão binarizada da img_in.'''
 
-    # TODO: escreva o código desta função.
-    # Dica/desafio: usando a função np.where, dá para fazer a binarização muito
-    # rapidamente, e com apenas uma linha de código!
-    # A função np.where é muito mais rápida do que iterar com laços for.
-
-    
+    '''
     canais = img.shape[2]
     linhas = img.shape[0]
     colunas = img.shape[1]
@@ -50,9 +45,9 @@ Valor de retorno: versão binarizada da img_in.'''
                 else:
                     img[i][j][k] = 0
 
-    return img
+    return img'''
 
-    '''return np.where(img > threshold, 1, 0)'''
+    return np.where(img > threshold, 1, 0).astype(np.float32)
 
 #-------------------------------------------------------------------------------
 
@@ -78,21 +73,23 @@ respectivamente: topo, esquerda, baixo e direita.'''
     
     # Garante que a recursão não exceda o limite do Python para imagens grandes.
     
-
     # Itera sobre cada pixel da imagem
 
     linhas = img.shape[0]
     colunas = img.shape[1]
-    label = 0.1
+    label = 0.01
     componentes = []
+    aux = []
 
     for i in range(linhas):
         for j in range(colunas):
             if img[i][j][0] == 1:
                 flood_fill(img, label, i, j)
-                componentes.append(achar_componente(img, label))
+                aux = achar_componente(img, label)
+                if aux != None:
+                    componentes.append(aux)
                 label += 0.01
-    
+
     return componentes
 
 def achar_componente (img, label):
@@ -109,6 +106,9 @@ def achar_componente (img, label):
     L = np.min(coords[1])
     # R (Direita) = índice máximo da coluna
     R = np.max(coords[1])
+
+    if((B-T) < ALTURA_MIN or (R-L) < LARGURA_MIN or n_pixels < N_PIXELS_MIN):
+        return None
 
     return {'label': label, 'n_pixels': n_pixels, 'T': T, 'L': L, 'B': B, 'R': R}
             
