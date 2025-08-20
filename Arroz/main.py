@@ -13,13 +13,13 @@ import cv2
 #===============================================================================
 
 INPUT_IMAGE =  'arroz.bmp'
-
-# TODO: ajuste estes parâmetros!
 NEGATIVO = False
-THRESHOLD = 0.8
-ALTURA_MIN = 10
-LARGURA_MIN = 10
-N_PIXELS_MIN = 10
+THRESHOLD = 0.7
+ALTURA_MIN = 15
+LARGURA_MIN = 15
+N_PIXELS_MIN = 15
+ARROZ = 1
+FUNDO = 0
 
 #===============================================================================
 
@@ -47,7 +47,7 @@ Valor de retorno: versão binarizada da img_in.'''
 
     return img'''
 
-    return np.where(img > threshold, 1, 0).astype(np.float32)
+    return np.where(img > threshold, ARROZ, FUNDO).astype(np.float32)
 
 #-------------------------------------------------------------------------------
 
@@ -68,63 +68,85 @@ com os seguintes campos:
 'T', 'L', 'B', 'R': coordenadas do retângulo envolvente de um componente conexo,
 respectivamente: topo, esquerda, baixo e direita.'''
 
-    # TODO: escreva esta função.
-    # Use a abordagem com flood fill recursivo.
-    
     # Garante que a recursão não exceda o limite do Python para imagens grandes.
-    
-    # Itera sobre cada pixel da imagem
+    sys.setrecursionlimit(img.shape[0] * img.shape[1])
 
-    linhas = img.shape[0]
-    colunas = img.shape[1]
+    # Itera sobre cada pixel da imagem
+    altura = img.shape[0]
+    largura = img.shape[1]
     label = 0.01
     componentes = []
-    aux = []
 
-    for i in range(linhas):
-        for j in range(colunas):
-            if img[i][j][0] == 1:
-                flood_fill(img, label, i, j)
-                aux = achar_componente(img, label)
-                if aux != None:
-                    componentes.append(aux)
+    # A convenção será y para linha (altura) e x para coluna (largura).
+    for y in range(altura):
+        for x in range(largura):
+            # Se achou um pixel de um objeto que ainda não foi rotulado.
+            if img[y][x][0] == ARROZ:
+                # Inicia o flood fill para encontrar o componente inteiro.
+                componente_achado = flood_fill(img, label, x, y)
+
+                # Verifica se o componente atende aos critérios de tamanho.
+                if verficar_componente(componente_achado, largura_min, altura_min, n_pixels_min):
+                    componentes.append(componente_achado)
+
                 label += 0.01
 
     return componentes
 
-def achar_componente (img, label):
+def atualizar_componente (componente, vizinho):
     
-    coords = np.where(img == label)
+    componente['n_pixels'] += vizinho['n_pixels']
+    componente['T'] = min(componente['T'], vizinho['T'])
+    componente['L'] = min(componente['L'], vizinho['L'])
+    componente['B'] = max(componente['B'], vizinho['B'])
+    componente['R'] = max(componente['R'], vizinho['R'])
 
-    n_pixels = len(coords[0])
+    return componente
 
-    # T (Topo) = índice mínimo da linha
-    T = np.min(coords[0])
-    # B (Base) = índice máximo da linha
-    B = np.max(coords[0])
-    # L (Esquerda) = índice mínimo da coluna
-    L = np.min(coords[1])
-    # R (Direita) = índice máximo da coluna
-    R = np.max(coords[1])
+def verficar_componente(componente, largura_min, altura_min, n_pixels_min):
 
-    if((B-T) < ALTURA_MIN or (R-L) < LARGURA_MIN or n_pixels < N_PIXELS_MIN):
-        return None
+    altura_obj = componente['B'] - componente['T'] + 1
+    largura_obj = componente['R'] - componente['L'] + 1
 
-    return {'label': label, 'n_pixels': n_pixels, 'T': T, 'L': L, 'B': B, 'R': R}
-            
-def flood_fill(img, label, x, y):
+    if(componente['n_pixels'] < n_pixels_min
+       or altura_obj < altura_min
+       or largura_obj < largura_min):
+        return False
 
-    img[x][y] = label
+    return True
 
-    if(x > 0 and img[x-1][y][0] == 1):
-        flood_fill(img, label, x-1, y)
-    if(y > 0 and img[x][y-1][0] == 1):
-        flood_fill(img, label, x, y-1)
-    if(x < img.shape[0]-1 and img[x+1][y][0] == 1):
-        flood_fill(img, label, x+1, y)
-    if(y < img.shape[1]-1 and img[x][y+1][0] == 1):
-        flood_fill(img, label, x, y+1)
+def flood_fill(img, label, x, y): # x: coluna (largura), y: linha (altura)
 
+    # Marca o pixel atual com o rótulo para não visitá-lo novamente.
+    img[y][x] = label
+
+    altura = img.shape[0]
+    largura = img.shape[1]
+    # Inicializa um componente "vazio" para ser preenchido pelos retornos da recursão.
+    # T/L são inicializados com valores altos, B/R com valores baixos.
+    componente = {'label': label, 'n_pixels': 0, 'T': altura, 'L': largura, 'B': -1, 'R': -1}
+
+    # Chamadas recursivas para os 4 vizinhos, corrigindo o acesso e os limites.
+    if(x > 0 and img[y][x-1][0] == ARROZ): # Vizinho da ESQUERDA
+        componente = atualizar_componente(componente, flood_fill(img, label, x-1, y))
+
+    if(y > 0 and img[y-1][x][0] == ARROZ): # Vizinho de CIMA
+        componente = atualizar_componente(componente,flood_fill(img, label, x, y-1))
+
+    if(x < largura-1 and img[y][x+1][0] == ARROZ): # Vizinho da DIREITA
+        componente = atualizar_componente(componente,flood_fill(img, label, x+1, y))
+
+    if(y < altura-1 and img[y+1][x][0] == ARROZ): # Vizinho de BAIXO
+        componente = atualizar_componente(componente, flood_fill(img, label, x, y+1))
+
+    # Após processar os vizinhos, adiciona os dados do pixel ATUAL ao componente.
+    componente['n_pixels'] += 1
+    componente['T'] = min(componente['T'], y)
+    componente['L'] = min(componente['L'], x)
+    componente['B'] = max(componente['B'], y)
+    componente['R'] = max(componente['R'], x)
+
+    return componente
 #===============================================================================
 
 def main ():
@@ -148,7 +170,7 @@ def main ():
         img = 1 - img
     img = binariza (img, THRESHOLD)
     cv2.imshow ('01 - binarizada', img)
-    cv2.imwrite ('01 - binarizada.png', img*255)
+    cv2.imwrite ('01 - binarizada.png', (img*255).astype(np.uint8))
 
     start_time = timeit.default_timer ()
     componentes = rotula (img, LARGURA_MIN, ALTURA_MIN, N_PIXELS_MIN)
@@ -161,7 +183,7 @@ def main ():
         cv2.rectangle (img_out, (c ['L'], c ['T']), (c ['R'], c ['B']), (0,0,1))
 
     cv2.imshow ('02 - out', img_out)
-    cv2.imwrite ('02 - out.png', img_out*255)
+    cv2.imwrite ('02 - out.png', (img_out*255).astype(np.uint8))
     cv2.waitKey ()
     cv2.destroyAllWindows ()
 
